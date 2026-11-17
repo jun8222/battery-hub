@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">배터리 허브</string>
+    <string name="widget_name">통합 배터리</string>
+    <string name="widget_desc">같은 와이파이에 있는 내 기기들과 이어폰의 배터리</string>
+    <color name="icon_bg">#2A2418</color>
+</resources>
