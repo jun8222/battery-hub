@@ -58,5 +58,14 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/battery_widget_info" />
         </receiver>
+        <receiver android:name=".CircleWidget" android:exported="true" android:label="@string/widget_circle_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/circle_widget_info" />
+        </receiver>
+
+        <receiver android:name=".RowWidget" android:exported="true" android:label="@string/widget_row_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/row_widget_info" />
+        </receiver>
     </application>
 </manifest>
