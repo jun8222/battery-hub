@@ -8,11 +8,11 @@
     android:gravity="center"
     android:padding="10dp">
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+    <LinearLayout android:id="@+id/crow0" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
         android:gravity="center" android:orientation="horizontal">
         <LinearLayout android:id="@+id/slot0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:gravity="center" android:orientation="vertical" android:visibility="gone">
-            <FrameLayout android:layout_width="58dp" android:layout_height="58dp">
+            <FrameLayout android:id="@+id/frame0" android:layout_width="58dp" android:layout_height="58dp">
                 <ProgressBar android:id="@+id/ring0" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="match_parent"
                     android:indeterminate="false" android:max="100" android:progressDrawable="@drawable/ring"  />
                 <TextView android:id="@+id/rpct0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center"
@@ -23,7 +23,7 @@
         </LinearLayout>
         <LinearLayout android:id="@+id/slot1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:gravity="center" android:orientation="vertical" android:visibility="gone">
-            <FrameLayout android:layout_width="58dp" android:layout_height="58dp">
+            <FrameLayout android:id="@+id/frame1" android:layout_width="58dp" android:layout_height="58dp">
                 <ProgressBar android:id="@+id/ring1" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="match_parent"
                     android:indeterminate="false" android:max="100" android:progressDrawable="@drawable/ring"  />
                 <TextView android:id="@+id/rpct1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center"
@@ -34,7 +34,7 @@
         </LinearLayout>
         <LinearLayout android:id="@+id/slot2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:gravity="center" android:orientation="vertical" android:visibility="gone">
-            <FrameLayout android:layout_width="58dp" android:layout_height="58dp">
+            <FrameLayout android:id="@+id/frame2" android:layout_width="58dp" android:layout_height="58dp">
                 <ProgressBar android:id="@+id/ring2" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="match_parent"
                     android:indeterminate="false" android:max="100" android:progressDrawable="@drawable/ring"  />
                 <TextView android:id="@+id/rpct2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center"
@@ -44,11 +44,11 @@
                 android:gravity="center" android:ellipsize="end" android:maxLines="1" android:textColor="#FFFFFF" android:textSize="11sp"  />
         </LinearLayout>
     </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+    <LinearLayout android:id="@+id/crow1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
         android:gravity="center" android:orientation="horizontal">
         <LinearLayout android:id="@+id/slot3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:gravity="center" android:orientation="vertical" android:visibility="gone">
-            <FrameLayout android:layout_width="58dp" android:layout_height="58dp">
+            <FrameLayout android:id="@+id/frame3" android:layout_width="58dp" android:layout_height="58dp">
                 <ProgressBar android:id="@+id/ring3" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="match_parent"
                     android:indeterminate="false" android:max="100" android:progressDrawable="@drawable/ring"  />
                 <TextView android:id="@+id/rpct3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center"
@@ -59,7 +59,7 @@
         </LinearLayout>
         <LinearLayout android:id="@+id/slot4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:gravity="center" android:orientation="vertical" android:visibility="gone">
-            <FrameLayout android:layout_width="58dp" android:layout_height="58dp">
+            <FrameLayout android:id="@+id/frame4" android:layout_width="58dp" android:layout_height="58dp">
                 <ProgressBar android:id="@+id/ring4" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="match_parent"
                     android:indeterminate="false" android:max="100" android:progressDrawable="@drawable/ring"  />
                 <TextView android:id="@+id/rpct4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center"
@@ -70,7 +70,7 @@
         </LinearLayout>
         <LinearLayout android:id="@+id/slot5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:gravity="center" android:orientation="vertical" android:visibility="gone">
-            <FrameLayout android:layout_width="58dp" android:layout_height="58dp">
+            <FrameLayout android:id="@+id/frame5" android:layout_width="58dp" android:layout_height="58dp">
                 <ProgressBar android:id="@+id/ring5" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="match_parent"
                     android:indeterminate="false" android:max="100" android:progressDrawable="@drawable/ring"  />
                 <TextView android:id="@+id/rpct5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center"

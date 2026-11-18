@@ -121,6 +121,17 @@ class BatteryWidget : BaseWidget() {
             v.setTextColor(RNAMES[i], textColor(stale))
         }
 
+        private val FRAMES = intArrayOf(R.id.frame0, R.id.frame1, R.id.frame2, R.id.frame3, R.id.frame4, R.id.frame5)
+
+        /** 원 크기(dp)와 글자 크기 맞추기 (안드로이드 12 이상) */
+        fun sizeSlot(v: RemoteViews, i: Int, ringDp: Int) {
+            if (Build.VERSION.SDK_INT < 31) return
+            v.setViewLayoutWidth(FRAMES[i], ringDp.toFloat(), android.util.TypedValue.COMPLEX_UNIT_DIP)
+            v.setViewLayoutHeight(FRAMES[i], ringDp.toFloat(), android.util.TypedValue.COMPLEX_UNIT_DIP)
+            v.setTextViewTextSize(RPCTS[i], android.util.TypedValue.COMPLEX_UNIT_SP, (ringDp * 0.22f).coerceIn(10f, 30f))
+            v.setTextViewTextSize(RNAMES[i], android.util.TypedValue.COMPLEX_UNIT_SP, (ringDp * 0.17f).coerceIn(10f, 15f))
+        }
+
         /** 기기가 하나도 없을 때 첫 칸에 안내 */
         fun emptyHint(v: RemoteViews) {
             v.setViewVisibility(SLOTS[0], View.VISIBLE)
@@ -131,33 +142,54 @@ class BatteryWidget : BaseWidget() {
     }
 }
 
-/** 원형 (2줄 × 2~3칸) */
+/** 원형: 기기 수와 위젯 크기에 맞춰 칸 배치(1~3칸 × 1~2줄)와 원 크기를 자동 조절 */
 class CircleWidget : BaseWidget() {
     override fun render(ctx: Context, opts: Bundle): RemoteViews {
         val w = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 150)
-        val cols = if (w >= 210) 3 else 2
-        val list = BatteryStore.forWidget(ctx).take(cols * 2)
+        val h = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
+        val list = BatteryStore.forWidget(ctx).take(6)
+        val n = list.size.coerceAtLeast(1)
+
+        // 원이 가장 크게 들어가는 칸 수 고르기
+        var cols = 1; var ring = 0
+        for (c in 1..minOf(n, 3)) {
+            val rows = (n + c - 1) / c
+            if (rows > 2) continue
+            val r = minOf((w - 20) / c - 10, (h - 20) / rows - 24)
+            if (r > ring) { ring = r; cols = c }
+        }
+        ring = ring.coerceIn(32, 150)
+        val rows = (n + cols - 1) / cols
+
         val now = System.currentTimeMillis()
         val v = RemoteViews(ctx.packageName, R.layout.widget_circle)
+        v.setViewVisibility(R.id.crow1, if (rows > 1) View.VISIBLE else View.GONE)
         for (i in 0 until 6) {
             val r = i / 3; val c = i % 3
             val e = if (c < cols) list.getOrNull(r * cols + c) else null
             BatteryWidget.fillSlot(ctx, v, i, e, now)
+            BatteryWidget.sizeSlot(v, i, ring)
         }
         if (list.isEmpty()) BatteryWidget.emptyHint(v)
         return v
     }
 }
 
-/** 가로형 (한 줄, 가로 길이에 맞춰 2~6칸) */
+/** 가로형: 한 줄, 기기 수와 위젯 크기에 맞춰 원 크기 자동 조절 */
 class RowWidget : BaseWidget() {
     override fun render(ctx: Context, opts: Bundle): RemoteViews {
         val w = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)
-        val n = (w / 62).coerceIn(2, 6)
-        val list = BatteryStore.forWidget(ctx).take(n)
+        val h = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 80)
+        val maxN = (w / 50).coerceIn(2, 6)
+        val list = BatteryStore.forWidget(ctx).take(maxN)
+        val n = list.size.coerceAtLeast(1)
+        val ring = minOf((w - 16) / n - 8, h - 16 - 20).coerceIn(28, 120)
         val now = System.currentTimeMillis()
         val v = RemoteViews(ctx.packageName, R.layout.widget_row)
-        for (i in 0 until 6) BatteryWidget.fillSlot(ctx, v, i, list.getOrNull(i), now)
+        for (i in 0 until 6) {
+            BatteryWidget.fillSlot(ctx, v, i, list.getOrNull(i), now)
+            BatteryWidget.sizeSlot(v, i, ring)
+        }
         if (list.isEmpty()) BatteryWidget.emptyHint(v)
         return v
     }

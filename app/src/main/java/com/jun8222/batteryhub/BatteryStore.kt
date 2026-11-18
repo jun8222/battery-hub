@@ -121,11 +121,9 @@ object BatteryStore {
     /** 항상 표시는 꺼져 있지만 배터리가 부족해서 잠깐 나타나는 항목 */
     fun isLowAlert(ctx: Context, e: Entry) = isHidden(ctx, e.key) && isLow(ctx, e)
 
-    /** 위젯에 보여줄 항목: 항상 표시 + 부족한 항목(맨 앞) */
+    /** 위젯에 보여줄 항목: 항상 표시 + 부족한 항목 (원래 순서 유지) */
     fun forWidget(ctx: Context): List<Entry> {
-        val all = sorted(ctx)
-        val low = all.filter { isLowAlert(ctx, it) }
-        return low + all.filter { !isHidden(ctx, it.key) }
+        return sorted(ctx).filter { !isHidden(ctx, it.key) || isLowAlert(ctx, it) }
     }
 
     /** 기기 하나가 보낸 배터리 정보(자기 자신 포함)를 저장. 그 기기의 액세서리 목록은 통째로 교체. */
