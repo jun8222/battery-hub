@@ -20,6 +20,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
+      - name: Check cloud API
+        continue-on-error: true
+        run: |
+          curl -s -X POST https://gfrtxtvgvxbummmrvtja.supabase.co/rest/v1/rpc/pull_status \
+            -H "apikey: sb_publishable_UpGShwvpmcSX83gqzGQ1EQ_CmCOcc2g" -H "Content-Type: application/json" \
+            -d '{"p_group":"CITEST-CITEST-CITEST"}' -w " HTTP%{http_code}\n"
       - name: Accept SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
       - name: Build

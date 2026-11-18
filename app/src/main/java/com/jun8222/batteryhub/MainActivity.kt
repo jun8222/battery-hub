@@ -255,7 +255,9 @@ class MainActivity : Activity() {
         cloudStatus.text = when {
             !BatteryStore.cloudEnabled(this) -> "인터넷 동기화 꺼짐"
             CloudSync.lastError != null -> "⚠️ 인터넷 동기화 실패: ${CloudSync.lastError}"
-            CloudSync.lastOk > 0 -> "✅ 인터넷 동기화 ${BatteryWidget.ago(System.currentTimeMillis() - CloudSync.lastOk).replace("0분 전", "방금")}"
+            CloudSync.lastOk > 0 && System.currentTimeMillis() - CloudSync.lastOk < 60_000 ->
+                "✅ 인터넷 동기화 방금"
+            CloudSync.lastOk > 0 -> "✅ 인터넷 동기화 ${BatteryWidget.ago(System.currentTimeMillis() - CloudSync.lastOk)}"
             else -> "인터넷 동기화 대기 중"
         }
         listBox.removeAllViews()
