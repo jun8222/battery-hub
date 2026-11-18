@@ -52,6 +52,7 @@ class SyncService : Service() {
     private var sender: ScheduledExecutorService? = null
     private var multicastLock: WifiManager.MulticastLock? = null
     @Volatile private var lastSent: Pair<Int, Boolean>? = null
+    @Volatile private var lastCloud = 0L
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
@@ -190,11 +191,17 @@ class SyncService : Service() {
             val p = BatteryReader.packet(this, hello)
             lastSent = p.getInt("level") to p.getBoolean("charging")
             BatteryStore.upsert(this, p)          // 내 기기도 목록에 반영
+            val now = System.currentTimeMillis()
+            if (hello || now - lastCloud > 30_000) { // 인터넷 동기화는 최대 30초에 한 번
+                lastCloud = now
+                CloudSync.sync(this, p)
+            }
             LowAlerts.check(this)
             BatteryWidget.refresh(this)
             updateStatus()
 
             val bytes = p.toString().toByteArray(Charsets.UTF_8)
+            // 와이파이 전송
             val s = socket ?: return
             for (addr in broadcastAddresses()) {
                 try { s.send(DatagramPacket(bytes, bytes.size, addr, PORT)) } catch (_: Exception) {}

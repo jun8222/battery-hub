@@ -32,6 +32,7 @@ class MainActivity : Activity() {
     private lateinit var listBox: LinearLayout
     private lateinit var status: TextView
     private lateinit var toggle: Button
+    private lateinit var cloudStatus: TextView
     private val handler = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() { renderList(); handler.postDelayed(this, 5000) }
@@ -53,7 +54,7 @@ class MainActivity : Activity() {
             setTypeface(typeface, Typeface.BOLD)
         })
         root.addView(TextView(this).apply {
-            text = "같은 와이파이에 연결된 내 폰·태블릿과 블루투스 이어폰의 배터리를 한곳에서 봐요. " +
+            text = "내 폰·태블릿과 블루투스 이어폰의 배터리를 한곳에서 봐요. 같은 와이파이에서는 바로, 다른 장소에서는 인터넷으로 주고받아요. " +
                 "모든 기기에 이 앱을 깔고 '동기화 시작'을 눌러 주세요."
             setTextColor(Color.DKGRAY)
             setPadding(0, dp(6), 0, dp(18))
@@ -100,6 +101,68 @@ class MainActivity : Activity() {
 
         status = TextView(this).apply { setTextColor(Color.DKGRAY); setPadding(0, dp(8), 0, 0) }
         root.addView(status)
+
+        // 인터넷 동기화
+        root.addView(label("인터넷 동기화 (다른 장소에서도)").apply { setPadding(0, dp(24), 0, dp(4)) })
+        root.addView(CheckBox(this).apply {
+            text = "인터넷으로도 주고받기"
+            isChecked = BatteryStore.cloudEnabled(this@MainActivity)
+            setOnCheckedChangeListener { _, c ->
+                BatteryStore.setCloudEnabled(this@MainActivity, c)
+                if (c && BatteryStore.isRunning(this@MainActivity)) SyncService.start(this@MainActivity)
+            }
+        })
+        root.addView(TextView(this).apply {
+            text = "모든 기기에 같은 연결 코드를 넣어야 서로 보여요. 첫 기기의 코드를 복사해서 다른 기기에 입력하세요."
+            setTextColor(Color.GRAY)
+            textSize = 12f
+        })
+        val codeView = TextView(this).apply {
+            text = BatteryStore.groupCode(this@MainActivity)
+            textSize = 22f
+            setTypeface(Typeface.MONOSPACE, Typeface.BOLD)
+            setTextIsSelectable(true)
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        val codeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        codeRow.addView(codeView, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        codeRow.addView(Button(this).apply {
+            text = "복사"
+            setOnClickListener {
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("연결 코드", codeView.text))
+                Toast.makeText(this@MainActivity, "복사했어요", Toast.LENGTH_SHORT).show()
+            }
+        })
+        root.addView(codeRow)
+        val joinRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val joinEdit = EditText(this).apply {
+            hint = "다른 기기의 코드 입력"
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+        }
+        joinRow.addView(joinEdit, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        joinRow.addView(Button(this).apply {
+            text = "연결"
+            setOnClickListener {
+                val code = BatteryStore.normalizeCode(joinEdit.text.toString())
+                if (code == null) {
+                    Toast.makeText(this@MainActivity, "코드는 16자리예요", Toast.LENGTH_SHORT).show()
+                } else {
+                    BatteryStore.setGroupCode(this@MainActivity, code)
+                    codeView.text = code
+                    joinEdit.setText("")
+                    if (BatteryStore.isRunning(this@MainActivity)) {
+                        SyncService.stop(this@MainActivity)
+                        SyncService.start(this@MainActivity)
+                    }
+                    Toast.makeText(this@MainActivity, "연결했어요", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
+        root.addView(joinRow)
+        cloudStatus = TextView(this).apply { setTextColor(Color.GRAY); textSize = 12f }
+        root.addView(cloudStatus)
 
         // 배터리 부족 알림 설정
         root.addView(label("배터리 부족 알림").apply { setPadding(0, dp(24), 0, dp(4)) })
@@ -151,7 +214,7 @@ class MainActivity : Activity() {
                 "• 잠금화면에서는 '배터리 허브' 상시 알림에 체크한 기기의 배터리가 보여요. 알림을 펼치면 전체 목록이 나와요.\n" +
                 "• 기기·이어폰 체크 상태는 기기마다 따로 저장돼요 (태블릿 위젯은 태블릿에서 설정).\n" +
                 "• 10분 넘게 소식이 없는 기기는 회색으로 마지막 시각을 표시하고, 3일 지나면 목록에서 사라져요.\n" +
-                "• 공유기에서 '기기 간 통신 차단(AP 격리)'이 켜져 있으면 서로 보이지 않아요."
+                "• 공유기에서 '기기 간 통신 차단(AP 격리)'이 켜져 있어도 인터넷 동기화로는 보여요."
             setTextColor(Color.GRAY)
             textSize = 12f
             setPadding(0, dp(24), 0, 0)
@@ -189,6 +252,12 @@ class MainActivity : Activity() {
     }
 
     private fun renderList() {
+        cloudStatus.text = when {
+            !BatteryStore.cloudEnabled(this) -> "인터넷 동기화 꺼짐"
+            CloudSync.lastError != null -> "⚠️ 인터넷 동기화 실패: ${CloudSync.lastError}"
+            CloudSync.lastOk > 0 -> "✅ 인터넷 동기화 ${BatteryWidget.ago(System.currentTimeMillis() - CloudSync.lastOk).replace("0분 전", "방금")}"
+            else -> "인터넷 동기화 대기 중"
+        }
         listBox.removeAllViews()
         val list = BatteryStore.sorted(this)
         if (list.isEmpty()) {

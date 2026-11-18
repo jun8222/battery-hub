@@ -29,6 +29,8 @@ object BatteryStore {
     private const val KEY_THRESHOLD = "threshold"
     private const val KEY_ALERTS = "alerts"
     private const val KEY_NOTIFIED = "notified"
+    private const val KEY_GROUP = "group_code"
+    private const val KEY_CLOUD = "cloud"
 
     /** 배터리 부족 판정에 쓰는 최근성 (이보다 오래된 정보는 무시) */
     private const val LOW_FRESH_MS = 6L * 60 * 60 * 1000
@@ -58,6 +60,31 @@ object BatteryStore {
 
     fun isRunning(ctx: Context) = prefs(ctx).getBoolean(KEY_RUNNING, false)
     fun setRunning(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean(KEY_RUNNING, v).apply()
+
+    // ---- 인터넷 동기화 연결 코드 ----
+    private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+    fun groupCode(ctx: Context): String {
+        prefs(ctx).getString(KEY_GROUP, null)?.let { return it }
+        val rnd = java.security.SecureRandom()
+        val raw = (1..16).map { CODE_CHARS[rnd.nextInt(CODE_CHARS.length)] }.joinToString("")
+        val code = format(raw)
+        prefs(ctx).edit().putString(KEY_GROUP, code).apply()
+        return code
+    }
+
+    private fun format(raw: String) = raw.chunked(4).joinToString("-")
+
+    /** 입력한 코드 정리. 16자리가 아니면 null */
+    fun normalizeCode(input: String): String? {
+        val raw = input.uppercase().filter { it.isLetterOrDigit() }
+        return if (raw.length == 16) format(raw) else null
+    }
+
+    fun setGroupCode(ctx: Context, code: String) = prefs(ctx).edit().putString(KEY_GROUP, code).apply()
+
+    fun cloudEnabled(ctx: Context) = prefs(ctx).getBoolean(KEY_CLOUD, true)
+    fun setCloudEnabled(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean(KEY_CLOUD, v).apply()
 
     // ---- 위젯 표시 선택 / 부족 알림 설정 ----
     fun isHidden(ctx: Context, key: String) = key in prefs(ctx).getStringSet(KEY_HIDDEN, emptySet())!!
@@ -92,9 +119,13 @@ object BatteryStore {
     /** 기기 하나가 보낸 배터리 정보(자기 자신 포함)를 저장. 그 기기의 액세서리 목록은 통째로 교체. */
     fun upsert(ctx: Context, packet: JSONObject) {
         val id = packet.getString("id")
-        val now = System.currentTimeMillis()
+        // 인터넷으로 받은 정보는 서버에 올라간 시각을 사용
+        val now = if (packet.has("ts_override")) packet.getLong("ts_override") else System.currentTimeMillis()
         synchronized(lock) {
-            val all = load(ctx).filter { it.owner != id }.toMutableList()
+            val old = load(ctx)
+            // 와이파이로 이미 더 최신 정보를 받았으면 무시
+            if (old.any { it.owner == id && !it.isAccessory && it.ts >= now }) return
+            val all = old.filter { it.owner != id }.toMutableList()
             all += Entry(
                 key = id, owner = id,
                 name = packet.optString("name", "기기"),
@@ -112,7 +143,7 @@ object BatteryStore {
                     ts = now, isAccessory = true,
                 )
             }
-            save(ctx, all.filter { now - it.ts < FORGET_AFTER_MS })
+            save(ctx, all.filter { System.currentTimeMillis() - it.ts < FORGET_AFTER_MS })
         }
     }
 
