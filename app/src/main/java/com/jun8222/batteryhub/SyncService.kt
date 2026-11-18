@@ -32,7 +32,7 @@ class SyncService : Service() {
 
     companion object {
         const val PORT = 48821
-        private const val CHANNEL = "sync"
+        private const val CHANNEL = "status"
         private const val NOTI_ID = 1
         private const val INTERVAL_SEC = 60L
 
@@ -124,26 +124,61 @@ class SyncService : Service() {
     }
 
     private fun goForeground() {
-        val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL, "배터리 공유", NotificationManager.IMPORTANCE_MIN)
-        )
-        val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-        )
-        val count = BatteryStore.sorted(this).count { !it.isAccessory }
-        val n = Notification.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_battery)
-            .setContentTitle("배터리 허브 실행 중")
-            .setContentText("같은 와이파이의 기기 ${count}대 표시 중")
-            .setContentIntent(open)
-            .setOngoing(true)
-            .build()
+        val n = buildStatus()
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTI_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(NOTI_ID, n)
         }
+    }
+
+    /** 상시 알림 = 잠금화면에서 보는 배터리 현황 (위젯에 표시하는 기기 + 부족한 기기) */
+    private fun buildStatus(): Notification {
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.deleteNotificationChannel("sync") // 예전 채널(최소 중요도: 잠금화면에 안 보임) 정리
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL, "배터리 현황 (잠금화면 표시)", NotificationManager.IMPORTANCE_LOW).apply {
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(false)
+            }
+        )
+        val open = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+        )
+        val now = System.currentTimeMillis()
+        val list = BatteryStore.forWidget(this)
+        fun fmt(e: Entry): String {
+            val stale = now - e.ts > BatteryWidget.STALE_MS
+            val low = BatteryStore.isLowAlert(this, e)
+            return buildString {
+                if (low) append("⚠") else if (e.isAccessory) append("🎧")
+                append(e.name).append(' ')
+                if (e.charging && !stale) append("⚡")
+                append(if (e.level >= 0) "${e.level}%" else "-")
+                if (stale) append(" (").append(BatteryWidget.ago(now - e.ts)).append(")")
+            }
+        }
+        val devices = list.filter { !it.isAccessory || BatteryStore.isLowAlert(this, it) }
+        val title = if (devices.isEmpty()) "배터리 허브" else devices.take(3).joinToString(" · ") { fmt(it) }
+        val text = if (list.isEmpty()) "같은 와이파이의 기기를 찾는 중" else list.joinToString(" · ") { fmt(it) }
+        val style = Notification.InboxStyle().setBigContentTitle("🔋 배터리 현황")
+        list.forEach { style.addLine(fmt(it)) }
+        return Notification.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_battery)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(style)
+            .setContentIntent(open)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .build()
+    }
+
+    private fun updateStatus() {
+        try { getSystemService(NotificationManager::class.java).notify(NOTI_ID, buildStatus()) } catch (_: Exception) {}
     }
 
     private fun sendSoon() {
@@ -157,6 +192,7 @@ class SyncService : Service() {
             BatteryStore.upsert(this, p)          // 내 기기도 목록에 반영
             LowAlerts.check(this)
             BatteryWidget.refresh(this)
+            updateStatus()
 
             val bytes = p.toString().toByteArray(Charsets.UTF_8)
             val s = socket ?: return
@@ -202,6 +238,7 @@ class SyncService : Service() {
                     BatteryStore.upsert(this, json)
                     LowAlerts.check(this)
                     BatteryWidget.refresh(this)
+                    updateStatus()
                     // 새로 켜진 기기가 인사하면 바로 내 정보로 답장 → 기다리지 않고 목록이 채워짐
                     if (json.optBoolean("hello")) sendSoon()
                 } catch (e: Exception) {

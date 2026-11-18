@@ -122,6 +122,7 @@ class MainActivity : Activity() {
                     thEdit.setText(BatteryStore.threshold(this@MainActivity).toString())
                     LowAlerts.check(this@MainActivity)
                     BatteryWidget.refresh(this@MainActivity)
+                    if (BatteryStore.isRunning(this@MainActivity)) SyncService.start(this@MainActivity)
                     renderList()
                     Toast.makeText(this@MainActivity, "저장했어요", Toast.LENGTH_SHORT).show()
                 }
@@ -147,6 +148,7 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply {
             text = "• 홈 화면을 길게 누르고 위젯 → '배터리 허브'에서 목록형·원형·가로형 중 골라 추가하세요. 추가한 뒤 길게 눌러 크기를 바꿀 수 있어요.\n" +
                 "• 무선 이어폰은 그 이어폰이 연결된 기기에 '근처 기기' 권한을 허용해야 보여요.\n" +
+                "• 잠금화면에서는 '배터리 허브' 상시 알림에 체크한 기기의 배터리가 보여요. 알림을 펼치면 전체 목록이 나와요.\n" +
                 "• 기기·이어폰 체크 상태는 기기마다 따로 저장돼요 (태블릿 위젯은 태블릿에서 설정).\n" +
                 "• 10분 넘게 소식이 없는 기기는 회색으로 마지막 시각을 표시하고, 3일 지나면 목록에서 사라져요.\n" +
                 "• 공유기에서 '기기 간 통신 차단(AP 격리)'이 켜져 있으면 서로 보이지 않아요."
@@ -211,6 +213,7 @@ class MainActivity : Activity() {
                     BatteryStore.setPinned(this@MainActivity, e.key, c)
                     LowAlerts.check(this@MainActivity)
                     BatteryWidget.refresh(this@MainActivity)
+                    if (BatteryStore.isRunning(this@MainActivity)) SyncService.start(this@MainActivity) // 상시 알림 갱신
                 }
             })
             val lowAlert = BatteryStore.isLowAlert(this, e)
