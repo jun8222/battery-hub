@@ -42,13 +42,25 @@ object BatteryStore {
 
     private fun prefs(ctx: Context) = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /**
+     * 기기 고유 ID. 앱을 지웠다 다시 깔아도 바뀌지 않도록 ANDROID_ID(같은 서명키·같은 기기면 고정)를 사용.
+     */
     fun deviceId(ctx: Context): String {
-        val p = prefs(ctx)
-        p.getString(KEY_ID, null)?.let { return it }
-        val id = UUID.randomUUID().toString()
-        p.edit().putString(KEY_ID, id).apply()
+        cachedId?.let { return it }
+        val aid = try {
+            android.provider.Settings.Secure.getString(ctx.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+        } catch (e: Exception) { null }
+        val id = if (!aid.isNullOrBlank() && aid != "9774d56d682e549c") {
+            val d = java.security.MessageDigest.getInstance("SHA-256").digest(aid.toByteArray())
+            "a-" + d.joinToString("") { "%02x".format(it) }.take(24)
+        } else {
+            val p = prefs(ctx)
+            p.getString(KEY_ID, null) ?: UUID.randomUUID().toString().also { p.edit().putString(KEY_ID, it).apply() }
+        }
+        cachedId = id
         return id
     }
+    @Volatile private var cachedId: String? = null
 
     fun deviceName(ctx: Context): String =
         prefs(ctx).getString(KEY_NAME, null)
@@ -123,12 +135,17 @@ object BatteryStore {
         val now = if (packet.has("ts_override")) packet.getLong("ts_override") else System.currentTimeMillis()
         synchronized(lock) {
             val old = load(ctx)
+            val name = packet.optString("name", "기기")
             // 와이파이로 이미 더 최신 정보를 받았으면 무시
             if (old.any { it.owner == id && !it.isAccessory && it.ts >= now }) return
-            val all = old.filter { it.owner != id }.toMutableList()
+            // 같은 이름의 기기 = 같은 기기(재설치 등으로 ID가 바뀐 경우). 더 최신 기록만 남김
+            val sameName = old.filter { !it.isAccessory && it.owner != id && it.name == name }
+            if (sameName.any { it.ts > now }) return
+            val drop = sameName.map { it.owner }.toSet() + id
+            val all = old.filter { it.owner !in drop }.toMutableList()
             all += Entry(
                 key = id, owner = id,
-                name = packet.optString("name", "기기"),
+                name = name,
                 level = packet.optInt("level", -1),
                 charging = packet.optBoolean("charging", false),
                 ts = now, isAccessory = false,
