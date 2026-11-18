@@ -39,7 +39,7 @@ class BatteryWidget : BaseWidget() {
     override fun render(ctx: Context, opts: Bundle): RemoteViews {
         val h = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180)
         val maxRows = ((h - 50) / 24).coerceIn(1, ROWS.size)
-        val list = BatteryStore.sorted(ctx).take(maxRows)
+        val list = BatteryStore.forWidget(ctx).take(maxRows)
         val now = System.currentTimeMillis()
         val v = RemoteViews(ctx.packageName, R.layout.widget_battery)
         v.setViewVisibility(R.id.empty, if (list.isEmpty()) View.VISIBLE else View.GONE)
@@ -50,7 +50,8 @@ class BatteryWidget : BaseWidget() {
             v.setViewVisibility(rowId, View.VISIBLE)
             val stale = now - e.ts > STALE_MS
             val tc = textColor(stale)
-            v.setTextViewText(NAMES[i], (if (e.isAccessory) "   🎧 " else "") + e.name)
+            val low = BatteryStore.isLowAlert(ctx, e)
+            v.setTextViewText(NAMES[i], (if (low) "⚠ " else if (e.isAccessory) "   🎧 " else "") + e.name)
             v.setTextColor(NAMES[i], tc)
             v.setProgressBar(BARS[i], 100, e.level.coerceIn(0, 100), false)
             tint(v, BARS[i], if (stale) Color.GRAY else levelColor(e.level))
@@ -108,7 +109,7 @@ class BatteryWidget : BaseWidget() {
         }
 
         /** 원형 슬롯 하나 채우기 */
-        fun fillSlot(v: RemoteViews, i: Int, e: Entry?, now: Long) {
+        fun fillSlot(ctx: Context, v: RemoteViews, i: Int, e: Entry?, now: Long) {
             if (e == null) { v.setViewVisibility(SLOTS[i], View.GONE); return }
             v.setViewVisibility(SLOTS[i], View.VISIBLE)
             val stale = now - e.ts > STALE_MS
@@ -116,7 +117,7 @@ class BatteryWidget : BaseWidget() {
             tint(v, RINGS[i], if (stale) Color.GRAY else levelColor(e.level))
             v.setTextViewText(RPCTS[i], (if (e.charging && !stale) "⚡" else "") + (if (e.level >= 0) "${e.level}%" else "-"))
             v.setTextColor(RPCTS[i], textColor(stale))
-            v.setTextViewText(RNAMES[i], (if (e.isAccessory) "🎧" else "") + e.name + (if (stale) " (${ago(now - e.ts)})" else ""))
+            v.setTextViewText(RNAMES[i], (if (BatteryStore.isLowAlert(ctx, e)) "⚠" else if (e.isAccessory) "🎧" else "") + e.name + (if (stale) " (${ago(now - e.ts)})" else ""))
             v.setTextColor(RNAMES[i], textColor(stale))
         }
 
@@ -135,13 +136,13 @@ class CircleWidget : BaseWidget() {
     override fun render(ctx: Context, opts: Bundle): RemoteViews {
         val w = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 150)
         val cols = if (w >= 210) 3 else 2
-        val list = BatteryStore.sorted(ctx).take(cols * 2)
+        val list = BatteryStore.forWidget(ctx).take(cols * 2)
         val now = System.currentTimeMillis()
         val v = RemoteViews(ctx.packageName, R.layout.widget_circle)
         for (i in 0 until 6) {
             val r = i / 3; val c = i % 3
             val e = if (c < cols) list.getOrNull(r * cols + c) else null
-            BatteryWidget.fillSlot(v, i, e, now)
+            BatteryWidget.fillSlot(ctx, v, i, e, now)
         }
         if (list.isEmpty()) BatteryWidget.emptyHint(v)
         return v
@@ -153,10 +154,10 @@ class RowWidget : BaseWidget() {
     override fun render(ctx: Context, opts: Bundle): RemoteViews {
         val w = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)
         val n = (w / 62).coerceIn(2, 6)
-        val list = BatteryStore.sorted(ctx).take(n)
+        val list = BatteryStore.forWidget(ctx).take(n)
         val now = System.currentTimeMillis()
         val v = RemoteViews(ctx.packageName, R.layout.widget_row)
-        for (i in 0 until 6) BatteryWidget.fillSlot(v, i, list.getOrNull(i), now)
+        for (i in 0 until 6) BatteryWidget.fillSlot(ctx, v, i, list.getOrNull(i), now)
         if (list.isEmpty()) BatteryWidget.emptyHint(v)
         return v
     }

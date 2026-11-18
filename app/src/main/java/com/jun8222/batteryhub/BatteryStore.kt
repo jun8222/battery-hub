@@ -25,6 +25,13 @@ object BatteryStore {
     private const val KEY_ID = "device_id"
     private const val KEY_NAME = "device_name"
     private const val KEY_RUNNING = "running"
+    private const val KEY_HIDDEN = "hidden"          // 위젯에 '항상 표시' 안 하는 항목 key
+    private const val KEY_THRESHOLD = "threshold"
+    private const val KEY_ALERTS = "alerts"
+    private const val KEY_NOTIFIED = "notified"
+
+    /** 배터리 부족 판정에 쓰는 최근성 (이보다 오래된 정보는 무시) */
+    private const val LOW_FRESH_MS = 6L * 60 * 60 * 1000
 
     /** 이 시간 넘게 소식이 없으면 목록에서 지움 */
     const val FORGET_AFTER_MS = 3L * 24 * 60 * 60 * 1000
@@ -52,6 +59,36 @@ object BatteryStore {
     fun isRunning(ctx: Context) = prefs(ctx).getBoolean(KEY_RUNNING, false)
     fun setRunning(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean(KEY_RUNNING, v).apply()
 
+    // ---- 위젯 표시 선택 / 부족 알림 설정 ----
+    fun isHidden(ctx: Context, key: String) = key in prefs(ctx).getStringSet(KEY_HIDDEN, emptySet())!!
+    fun setPinned(ctx: Context, key: String, pinned: Boolean) {
+        val set = prefs(ctx).getStringSet(KEY_HIDDEN, emptySet())!!.toMutableSet()
+        if (pinned) set -= key else set += key
+        prefs(ctx).edit().putStringSet(KEY_HIDDEN, set).apply()
+    }
+
+    fun threshold(ctx: Context) = prefs(ctx).getInt(KEY_THRESHOLD, 20)
+    fun setThreshold(ctx: Context, v: Int) = prefs(ctx).edit().putInt(KEY_THRESHOLD, v.coerceIn(5, 80)).apply()
+
+    fun alertsEnabled(ctx: Context) = prefs(ctx).getBoolean(KEY_ALERTS, true)
+    fun setAlertsEnabled(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean(KEY_ALERTS, v).apply()
+
+    fun notified(ctx: Context): Set<String> = prefs(ctx).getStringSet(KEY_NOTIFIED, emptySet())!!.toSet()
+    fun setNotified(ctx: Context, v: Set<String>) = prefs(ctx).edit().putStringSet(KEY_NOTIFIED, v).apply()
+
+    fun isLow(ctx: Context, e: Entry) =
+        e.level in 0..threshold(ctx) && !e.charging && System.currentTimeMillis() - e.ts < LOW_FRESH_MS
+
+    /** 항상 표시는 꺼져 있지만 배터리가 부족해서 잠깐 나타나는 항목 */
+    fun isLowAlert(ctx: Context, e: Entry) = isHidden(ctx, e.key) && isLow(ctx, e)
+
+    /** 위젯에 보여줄 항목: 항상 표시 + 부족한 항목(맨 앞) */
+    fun forWidget(ctx: Context): List<Entry> {
+        val all = sorted(ctx)
+        val low = all.filter { isLowAlert(ctx, it) }
+        return low + all.filter { !isHidden(ctx, it.key) }
+    }
+
     /** 기기 하나가 보낸 배터리 정보(자기 자신 포함)를 저장. 그 기기의 액세서리 목록은 통째로 교체. */
     fun upsert(ctx: Context, packet: JSONObject) {
         val id = packet.getString("id")
@@ -77,10 +114,6 @@ object BatteryStore {
             }
             save(ctx, all.filter { now - it.ts < FORGET_AFTER_MS })
         }
-    }
-
-    fun remove(ctx: Context, owner: String) {
-        synchronized(lock) { save(ctx, load(ctx).filter { it.owner != owner }) }
     }
 
     /** 표시 순서: 내 기기 → 다른 기기(이름순), 각 기기 바로 밑에 그 기기의 액세서리 */

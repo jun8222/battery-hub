@@ -18,6 +18,8 @@ import android.view.Gravity
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.Button
+import android.widget.CheckBox
+import android.text.InputType
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -99,13 +101,53 @@ class MainActivity : Activity() {
         status = TextView(this).apply { setTextColor(Color.DKGRAY); setPadding(0, dp(8), 0, 0) }
         root.addView(status)
 
-        root.addView(label("기기 목록").apply { setPadding(0, dp(24), 0, dp(8)) })
+        // 배터리 부족 알림 설정
+        root.addView(label("배터리 부족 알림").apply { setPadding(0, dp(24), 0, dp(4)) })
+        val thRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        thRow.addView(TextView(this).apply { text = "기준 " })
+        val thEdit = EditText(this).apply {
+            setText(BatteryStore.threshold(this@MainActivity).toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+            isSingleLine = true
+            gravity = Gravity.CENTER
+        }
+        thRow.addView(thEdit, LinearLayout.LayoutParams(dp(64), WRAP_CONTENT))
+        thRow.addView(TextView(this).apply { text = "% 이하" }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        thRow.addView(Button(this).apply {
+            text = "저장"
+            setOnClickListener {
+                val v = thEdit.text.toString().toIntOrNull()
+                if (v != null) {
+                    BatteryStore.setThreshold(this@MainActivity, v)
+                    thEdit.setText(BatteryStore.threshold(this@MainActivity).toString())
+                    LowAlerts.check(this@MainActivity)
+                    BatteryWidget.refresh(this@MainActivity)
+                    renderList()
+                    Toast.makeText(this@MainActivity, "저장했어요", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
+        root.addView(thRow)
+        root.addView(CheckBox(this).apply {
+            text = "이 기기에서 부족 알림 받기"
+            isChecked = BatteryStore.alertsEnabled(this@MainActivity)
+            setOnCheckedChangeListener { _, c -> BatteryStore.setAlertsEnabled(this@MainActivity, c) }
+        })
+
+        root.addView(label("기기 목록").apply { setPadding(0, dp(24), 0, dp(2)) })
+        root.addView(TextView(this).apply {
+            text = "체크한 기기만 위젯에 항상 보여요. 체크 안 한 기기는 배터리가 기준 이하로 떨어지면 위젯에 ⚠ 표시로 나타나고 알림이 와요."
+            setTextColor(Color.GRAY)
+            textSize = 12f
+            setPadding(0, 0, 0, dp(8))
+        })
         listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(listBox)
 
         root.addView(TextView(this).apply {
             text = "• 홈 화면을 길게 누르고 위젯 → '배터리 허브'에서 목록형·원형·가로형 중 골라 추가하세요. 추가한 뒤 길게 눌러 크기를 바꿀 수 있어요.\n" +
                 "• 무선 이어폰은 그 이어폰이 연결된 기기에 '근처 기기' 권한을 허용해야 보여요.\n" +
+                "• 기기·이어폰 체크 상태는 기기마다 따로 저장돼요 (태블릿 위젯은 태블릿에서 설정).\n" +
                 "• 10분 넘게 소식이 없는 기기는 회색으로 마지막 시각을 표시하고, 3일 지나면 목록에서 사라져요.\n" +
                 "• 공유기에서 '기기 간 통신 차단(AP 격리)'이 켜져 있으면 서로 보이지 않아요."
             setTextColor(Color.GRAY)
@@ -161,10 +203,19 @@ class MainActivity : Activity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(if (e.isAccessory) dp(20) else 0, dp(6), 0, dp(6))
+                setPadding(if (e.isAccessory) dp(20) else 0, dp(2), 0, dp(2))
             }
+            row.addView(CheckBox(this).apply {
+                isChecked = !BatteryStore.isHidden(this@MainActivity, e.key)
+                setOnCheckedChangeListener { _, c ->
+                    BatteryStore.setPinned(this@MainActivity, e.key, c)
+                    LowAlerts.check(this@MainActivity)
+                    BatteryWidget.refresh(this@MainActivity)
+                }
+            })
+            val lowAlert = BatteryStore.isLowAlert(this, e)
             row.addView(TextView(this).apply {
-                text = (if (e.isAccessory) "🎧 " else "📱 ") + e.name +
+                text = (if (lowAlert) "⚠ " else "") + (if (e.isAccessory) "🎧 " else "📱 ") + e.name +
                     (if (!e.isAccessory && e.owner == me) "  (이 기기)" else "")
                 setTextColor(if (stale) Color.GRAY else Color.BLACK)
                 maxLines = 1
@@ -186,23 +237,8 @@ class MainActivity : Activity() {
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(if (stale) Color.GRAY else Color.BLACK)
             }, LinearLayout.LayoutParams(dp(70), WRAP_CONTENT))
-            if (!e.isAccessory && e.owner != me) {
-                row.setOnLongClickListener {
-                    BatteryStore.remove(this, e.owner)
-                    BatteryWidget.refresh(this)
-                    renderList()
-                    Toast.makeText(this, "${e.name} 삭제", Toast.LENGTH_SHORT).show()
-                    true
-                }
-            }
             listBox.addView(row)
         }
-        listBox.addView(TextView(this).apply {
-            text = "다른 기기를 길게 누르면 목록에서 지울 수 있어요."
-            setTextColor(Color.GRAY)
-            textSize = 11f
-            setPadding(0, dp(4), 0, 0)
-        })
     }
 
     private fun askPermissionsThenStart() {

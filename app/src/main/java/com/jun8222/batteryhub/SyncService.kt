@@ -155,6 +155,7 @@ class SyncService : Service() {
             val p = BatteryReader.packet(this, hello)
             lastSent = p.getInt("level") to p.getBoolean("charging")
             BatteryStore.upsert(this, p)          // 내 기기도 목록에 반영
+            LowAlerts.check(this)
             BatteryWidget.refresh(this)
 
             val bytes = p.toString().toByteArray(Charsets.UTF_8)
@@ -199,6 +200,7 @@ class SyncService : Service() {
                     if (json.optString("app") != "batteryhub") continue
                     if (json.optString("id") == myId) continue
                     BatteryStore.upsert(this, json)
+                    LowAlerts.check(this)
                     BatteryWidget.refresh(this)
                     // 새로 켜진 기기가 인사하면 바로 내 정보로 답장 → 기다리지 않고 목록이 채워짐
                     if (json.optBoolean("hello")) sendSoon()
